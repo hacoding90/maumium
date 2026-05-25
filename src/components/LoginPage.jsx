@@ -3,13 +3,19 @@ import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase.js'
 import ConsentModal from './ConsentModal.jsx'
 
+const CONSENT_KEY = 'maumium_consented'
+
 export default function LoginPage() {
+  // localStorage에서 동의 여부 확인
+  const alreadyConsented = localStorage.getItem(CONSENT_KEY) === 'true'
   const [showConsent, setShowConsent] = useState(false)
-  const [consented, setConsented] = useState(false)
 
   const handleLoginClick = () => {
-    if (!consented) { setShowConsent(true); return }
-    doLogin()
+    if (!alreadyConsented) {
+      setShowConsent(true)
+    } else {
+      doLogin()
+    }
   }
 
   const doLogin = async () => {
@@ -26,7 +32,8 @@ export default function LoginPage() {
   }
 
   const handleConsent = () => {
-    setConsented(true)
+    // 동의 완료 → localStorage에 저장 (영구 유지)
+    localStorage.setItem(CONSENT_KEY, 'true')
     setShowConsent(false)
     setTimeout(doLogin, 100)
   }
@@ -37,7 +44,6 @@ export default function LoginPage() {
       background: 'linear-gradient(160deg,#fdf0f4 0%,#f5e0ec 50%,#fdf6f8 100%)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24,
     }}>
-      {/* 로고 영역 */}
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
         <div style={{ fontSize: 64, marginBottom: 16 }}>🌸</div>
         <h1 style={{ fontSize: 32, fontWeight: 800, color: '#2d1a22', marginBottom: 8, letterSpacing: -1 }}>마음이음</h1>
@@ -47,7 +53,6 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* 로그인 카드 */}
       <div style={{
         background: '#fff', borderRadius: 24, padding: '32px 28px',
         width: '100%', maxWidth: 360,
@@ -64,10 +69,8 @@ export default function LoginPage() {
             border: '1.5px solid #e8e0e4', background: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
             fontSize: 15, fontWeight: 700, color: '#3a1e28', cursor: 'pointer',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.06)', transition: 'all 0.15s',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
           }}
-          onMouseEnter={e => e.currentTarget.style.background = '#fdf6f8'}
-          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
         >
           <svg width="22" height="22" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -79,7 +82,7 @@ export default function LoginPage() {
         </button>
 
         <p style={{ fontSize: 11, color: '#c0a0b0', marginTop: 16, textAlign: 'center', lineHeight: 1.6 }}>
-          로그인 시 개인정보 처리방침 및<br />서비스 이용약관에 동의하게 됩니다
+          {alreadyConsented ? '✓ 이미 약관에 동의하셨습니다' : '로그인 시 약관 동의가 필요합니다'}
         </p>
       </div>
 

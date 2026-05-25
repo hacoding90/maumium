@@ -79,16 +79,18 @@ export default function App() {
           await setDoc(doc(db, 'users', u.uid), { role: '짱', email: u.email, displayName: u.displayName || '', updatedAt: serverTimestamp() }, { merge: true })
           setUserRole('짱'); setAuthState('ready'); return
         }
-        if (snap.exists() && snap.data()?.gender) {
+        if (snap.exists()) {
           const data = snap.data()
+          await updateDoc(doc(db, 'users', u.uid), { email: u.email, displayName: data.displayName || u.displayName || '' })
           setUserRole(data.role || '일반인')
-          setUserGender(data.gender); setAuthState('ready')
+          if (data.gender) { setUserGender(data.gender); setAuthState('ready') }
+          else setAuthState('needGender')
         } else {
-          setUserRole(snap.exists() ? snap.data()?.role || '일반인' : '일반인')
-          setAuthState('needGender')
+          await setDoc(doc(db, 'users', u.uid), { email: u.email, displayName: u.displayName || '', role: '일반인', createdAt: serverTimestamp() })
+          setUserRole('일반인'); setAuthState('needGender')
         }
       } catch (err) {
-        console.error(err)
+        console.error('사용자 정보 오류:', err)
         if (adminByEmail) { setUserRole('짱'); setAuthState('ready') }
         else setAuthState('needGender')
       }
