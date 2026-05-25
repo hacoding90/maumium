@@ -9,8 +9,13 @@ function Tag({ children, bg = '#f3e8ee', color = '#a0415d' }) {
   )
 }
 
+const currentYear = new Date().getFullYear()
+const getAge = (p) => p.birthYear ? currentYear - p.birthYear + 1 : p.age
+
 export default function ProfileCard({ profile, onOpen, onLike, isAdmin }) {
   const [hovered, setHovered] = useState(false)
+  const age = getAge(profile)
+
   return (
     <div
       onClick={() => onOpen(profile)}
@@ -24,35 +29,34 @@ export default function ProfileCard({ profile, onOpen, onLike, isAdmin }) {
         transition: 'all 0.18s', display: 'flex', flexDirection: 'column',
       }}
     >
-      <div style={{
-        position: 'relative', background: 'linear-gradient(135deg,#fdf0f4,#f5e0ec)',
-        padding: '28px 0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        borderRadius: '20px 20px 0 0',
-      }}>
+      <div style={{ position: 'relative', background: 'linear-gradient(135deg,#fdf0f4,#f5e0ec)', padding: '28px 0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: '20px 20px 0 0' }}>
         <Avatar name={profile.name} size={84} />
         <button
           onClick={e => { e.stopPropagation(); onLike(profile.id, profile.liked) }}
-          style={{
-            position: 'absolute', top: 12, right: 14,
-            background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%',
-            width: 34, height: 34, cursor: 'pointer', fontSize: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-          }}
+          style={{ position: 'absolute', top: 12, right: 14, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }}
         >
           {profile.liked ? '❤️' : '🤍'}
         </button>
         <div style={{ marginTop: 10, fontWeight: 700, fontSize: 17, color: '#2d1a22' }}>{profile.name}</div>
         <div style={{ fontSize: 13, color: '#9c6278', marginTop: 2 }}>
-          {profile.gender === '남' ? '♂' : '♀'} {profile.age}세 · {profile.region}
+          {profile.gender === '남' ? '♂' : '♀'} {profile.birthYear ? `${profile.birthYear}년생` : `${age}세`} · {profile.region}
         </div>
       </div>
+
       <div style={{ padding: '14px 18px 18px', display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <Tag>{profile.job}</Tag>
           <Tag bg="#e8f0fa" color="#2a4a7a">{profile.height}cm</Tag>
           {profile.mbti && <Tag bg="#ede8fa" color="#5a3a9a">{profile.mbti}</Tag>}
         </div>
+
+        {/* 직장명 표시 */}
+        {profile.workplace && (
+          <div style={{ fontSize: 12, color: '#9c6278', display: 'flex', alignItems: 'center', gap: 4 }}>
+            🏢 {profile.workplace}
+          </div>
+        )}
+
         <p style={{ margin: 0, fontSize: 13, color: '#6b4458', lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
           {profile.intro || '소개글이 없습니다.'}
         </p>

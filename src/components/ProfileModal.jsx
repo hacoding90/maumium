@@ -1,13 +1,24 @@
 import Avatar from './Avatar.jsx'
 
+const currentYear = new Date().getFullYear()
+const getAge = (p) => p.birthYear ? currentYear - p.birthYear + 1 : p.age
+
 export default function ProfileModal({ profile, onClose, onLike, onDelete, isAdmin }) {
   if (!profile) return null
 
+  const age = getAge(profile)
+
   const infoRows = [
-    ['나이', `${profile.age}세`], ['키', `${profile.height}cm`],
-    ['지역', profile.region], ['직업', profile.job],
-    ['학력', profile.education], ['종교', profile.religion],
-    ['음주', profile.drink], ['흡연', profile.smoke],
+    ['출생연도', profile.birthYear ? `${profile.birthYear}년생` : '-'],
+    ['나이', `만 ${age}세`],
+    ['키', `${profile.height}cm`],
+    ['지역', profile.region],
+    ['직업', profile.job],
+    profile.workplace ? ['직장명', profile.workplace] : null,
+    ['학력', profile.education],
+    ['종교', profile.religion],
+    ['음주', profile.drink],
+    ['흡연', profile.smoke],
     profile.mbti ? ['MBTI', profile.mbti] : null,
   ].filter(Boolean)
 
@@ -20,8 +31,11 @@ export default function ProfileModal({ profile, onClose, onLike, onDelete, isAdm
           <Avatar name={profile.name} size={100} />
           <div style={{ marginTop: 12, fontWeight: 700, fontSize: 20, color: '#2d1a22' }}>{profile.name}</div>
           <div style={{ fontSize: 14, color: '#9c6278', marginTop: 3 }}>
-            {profile.gender === '남' ? '♂ 남성' : '♀ 여성'} · {profile.age}세 · {profile.region}
+            {profile.gender === '남' ? '♂ 남성' : '♀ 여성'} · {profile.birthYear ? `${profile.birthYear}년생` : `${age}세`} · {profile.region}
           </div>
+          {profile.workplace && (
+            <div style={{ fontSize: 13, color: '#c97090', marginTop: 4 }}>🏢 {profile.workplace}</div>
+          )}
           <button
             onClick={() => onLike(profile.id, profile.liked)}
             style={{ marginTop: 14, background: profile.liked ? '#e05a7a' : '#fff', color: profile.liked ? '#fff' : '#e05a7a', border: '1.5px solid #e05a7a', borderRadius: 20, padding: '8px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
@@ -42,7 +56,7 @@ export default function ProfileModal({ profile, onClose, onLike, onDelete, isAdm
             <div style={{ fontSize: 11, fontWeight: 700, color: '#c97090', marginBottom: 10 }}>기본 정보</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px' }}>
               {infoRows.map(([k, v]) => (
-                <div key={k} style={{ background: '#faf7f8', borderRadius: 10, padding: '8px 12px' }}>
+                <div key={k} style={{ background: '#faf7f8', borderRadius: 10, padding: '8px 12px', gridColumn: k === '직장명' ? 'span 2' : 'span 1' }}>
                   <div style={{ fontSize: 11, color: '#b08898', marginBottom: 2 }}>{k}</div>
                   <div style={{ fontSize: 14, color: '#3a1e28', fontWeight: 600 }}>{v}</div>
                 </div>
@@ -63,7 +77,7 @@ export default function ProfileModal({ profile, onClose, onLike, onDelete, isAdm
           {isAdmin && (
             <button
               onClick={() => { if (window.confirm(`${profile.name}님의 프로필을 삭제할까요?`)) { onDelete(profile.id); onClose() } }}
-              style={{ width: '100%', padding: '10px', borderRadius: 12, border: '1px solid #f0dce6', background: '#fff', color: '#c08898', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}
+              style={{ width: '100%', padding: '10px', borderRadius: 12, border: '1px solid #f0dce6', background: '#fff', color: '#c08898', fontSize: 13, cursor: 'pointer', fontWeight: 500, marginTop: 8 }}
             >
               🗑️ 프로필 삭제
             </button>
