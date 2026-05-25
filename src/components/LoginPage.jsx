@@ -1,41 +1,18 @@
-import { useState } from 'react'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase.js'
-import ConsentModal from './ConsentModal.jsx'
-
-const CONSENT_KEY = 'maumium_consented'
 
 export default function LoginPage() {
-  // localStorage에서 동의 여부 확인
-  const alreadyConsented = localStorage.getItem(CONSENT_KEY) === 'true'
-  const [showConsent, setShowConsent] = useState(false)
-
-  const handleLoginClick = () => {
-    if (!alreadyConsented) {
-      setShowConsent(true)
-    } else {
-      doLogin()
-    }
-  }
-
   const doLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider)
     } catch (e) {
       if (e.code === 'auth/popup-closed-by-user') return
       if (e.code === 'auth/popup-blocked') {
-        alert('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.')
+        alert('팝업이 차단되었습니다. 브라우저에서 팝업을 허용해주세요.')
         return
       }
       alert('로그인 오류: ' + e.message)
     }
-  }
-
-  const handleConsent = () => {
-    // 동의 완료 → localStorage에 저장 (영구 유지)
-    localStorage.setItem(CONSENT_KEY, 'true')
-    setShowConsent(false)
-    setTimeout(doLogin, 100)
   }
 
   return (
@@ -63,7 +40,7 @@ export default function LoginPage() {
           구글 계정으로 간편 로그인
         </div>
         <button
-          onClick={handleLoginClick}
+          onClick={doLogin}
           style={{
             width: '100%', padding: '15px', borderRadius: 14,
             border: '1.5px solid #e8e0e4', background: '#fff',
@@ -80,13 +57,10 @@ export default function LoginPage() {
           </svg>
           Google로 로그인
         </button>
-
         <p style={{ fontSize: 11, color: '#c0a0b0', marginTop: 16, textAlign: 'center', lineHeight: 1.6 }}>
-          {alreadyConsented ? '✓ 이미 약관에 동의하셨습니다' : '로그인 시 약관 동의가 필요합니다'}
+          로그인 후 개인정보 동의 절차가 진행됩니다
         </p>
       </div>
-
-      {showConsent && <ConsentModal onAgree={handleConsent} />}
     </div>
   )
 }

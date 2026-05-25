@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signOut, deleteUser } from 'firebase/auth'
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
-  doc, serverTimestamp, query, orderBy, setDoc, getDoc,
+  doc, serverTimestamp, query, orderBy, setDoc, getDoc, writeBatch,
 } from 'firebase/firestore'
 import { db, auth, ADMIN_EMAILS } from './firebase.js'
 import LoginPage from './components/LoginPage.jsx'
@@ -12,12 +12,11 @@ import RegisterForm from './components/RegisterForm.jsx'
 import MatchingTab from './components/MatchingTab.jsx'
 import GenderSetup from './components/GenderSetup.jsx'
 import RoleManager from './components/RoleManager.jsx'
+import ConsentModal from './components/ConsentModal.jsx'
 import Avatar from './components/Avatar.jsx'
 
-// 짱=admin, 일진=juseonja, 일반인=user
-const isAdminRole = (role) => role === '짱'
-const isJinjRole  = (role) => role === '일진'
-const canWriteRole = (role) => role === '짱' || role === '일진'
+const isAdminRole  = (r) => r === '짱'
+const canWriteRole = (r) => r === '짱' || r === '일진'
 
 function Toast({ msg }) {
   if (!msg) return null
@@ -40,11 +39,14 @@ function Loading({ text = '로딩 중...' }) {
 }
 
 export default function App() {
+  // 인증 상태: loading | loggedOut | needConsent | needGender | ready
   const [authState, setAuthState]       = useState('loading')
   const [user, setUser]                 = useState(null)
-  const [userRole, setUserRole]         = useState(null)
+  const [userRole, setUserRole]         = useState('일반인')
   const [userGender, setUserGender]     = useState(null)
   const [genderSaving, setGenderSaving] = useState(false)
+  const [consentSaving, setConsentSaving] = useState(false)
+
   const [tab, setTab]                   = useState('profiles')
   const [showRegister, setShowRegister] = useState(false)
   const [editingProfile, setEditingProfile] = useState(null)
@@ -56,74 +58,155 @@ export default function App() {
   const [showHidden, setShowHidden]     = useState(false)
   const [formLoading, setFormLoading]   = useState(false)
   const [toast, setToast]               = useState(null)
+  const [showWithdraw, setShowWithdraw] = useState(false)
 
   const unsubProfiles  = useRef(null)
   const unsubMatchings = useRef(null)
 
-  const isAdmin   = isAdminRole(userRole)
-  const isJinj    = isJinjRole(userRole)
-  const canWrite  = canWriteRole(userRole)
+  const isAdmin  = isAdminRole(userRole)
+  const canWrite = canWriteRole(userRole)
 
+  // ── 인증 상태 감지 ──────────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      unsubProfiles.current?.(); unsubMatchings.current?.()
+      unsubProfiles.current?.()
+      unsubMatchings.current?.()
+
       if (!u) {
-        setUser(null); setUserRole(null); setUserGender(null)
+        setUser(null); setUserRole('일반인'); setUserGender(null)
         setAuthState('loggedOut'); return
       }
-      setUser(u); setAuthState('loading')
+
+      setUser(u)
+      setAuthState('loading')
+
       const adminByEmail = ADMIN_EMAILS.includes(u.email)
+
       try {
-        const snap = await getDoc(doc(db, 'users', u.uid))
+        // 사용자 문서 가져오기 (없으면 생성)
+        const userRef = doc(db, 'users', u.uid)
+        const snap = await getDoc(userRef)
+
+        if (!snap.exists()) {
+          // ── 첫 로그인: 문서 생성 ──
+          const newData = {
+            email: u.email,
+            displayName: u.displayName || '',
+            role: adminByEmail ? '짱' : '일반인',
+            consented: false,
+            createdAt: serverTimestamp(),
+          }
+          await setDoc(userRef, newData)
+          setUserRole(newData.role)
+
+          if (adminByEmail) {
+            setAuthState('ready')
+          } else {
+            setAuthState('needConsent') // 동의 필요
+          }
+          return
+        }
+
+        // ── 기존 사용자 ──
+        const data = snap.data()
+
+        // 관리자 이메일이면 짱 권한 보장
+        if (adminByEmail && data.role !== '짱') {
+          await updateDoc(userRef, { role: '짱', email: u.email })
+        }
+
+        const role = adminByEmail ? '짱' : (data.role || '일반인')
+        setUserRole(role)
+
+        // 이름/이메일 최신화
+        if (data.email !== u.email || (!data.displayName && u.displayName)) {
+          await updateDoc(userRef, {
+            email: u.email,
+            displayName: data.displayName || u.displayName || '',
+          })
+        }
+
         if (adminByEmail) {
-          await setDoc(doc(db, 'users', u.uid), { role: '짱', email: u.email, displayName: u.displayName || '', updatedAt: serverTimestamp() }, { merge: true })
-          setUserRole('짱'); setAuthState('ready'); return
+          setAuthState('ready'); return
         }
-        if (snap.exists()) {
-          const data = snap.data()
-          await updateDoc(doc(db, 'users', u.uid), { email: u.email, displayName: data.displayName || u.displayName || '' })
-          setUserRole(data.role || '일반인')
-          if (data.gender) { setUserGender(data.gender); setAuthState('ready') }
-          else setAuthState('needGender')
-        } else {
-          await setDoc(doc(db, 'users', u.uid), { email: u.email, displayName: u.displayName || '', role: '일반인', createdAt: serverTimestamp() })
-          setUserRole('일반인'); setAuthState('needGender')
+
+        // 동의 여부 확인
+        if (!data.consented) {
+          setAuthState('needConsent'); return
         }
+
+        // 성별 확인
+        if (!data.gender) {
+          setAuthState('needGender'); return
+        }
+
+        setUserGender(data.gender)
+        setAuthState('ready')
+
       } catch (err) {
-        console.error('사용자 정보 오류:', err)
-        if (adminByEmail) { setUserRole('짱'); setAuthState('ready') }
-        else setAuthState('needGender')
+        console.error('사용자 정보 처리 오류:', err.code, err.message)
+        if (adminByEmail) {
+          setUserRole('짱'); setAuthState('ready')
+        } else {
+          setAuthState('needConsent')
+        }
       }
     })
     return unsub
   }, [])
 
-  useEffect(() => {
-    if (authState !== 'ready' || !user) return
-    const q = query(collection(db, 'profiles'), orderBy('createdAt', 'desc'))
-    unsubProfiles.current = onSnapshot(q, snap => setProfiles(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
-    return () => unsubProfiles.current?.()
-  }, [authState, user])
+  // ── 개인정보 동의 저장 ──────────────────────────
+  const handleConsent = async () => {
+    if (!user || consentSaving) return
+    setConsentSaving(true)
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { consented: true })
+      setAuthState('needGender')
+    } catch (err) {
+      alert('동의 저장 실패: ' + err.message)
+    } finally {
+      setConsentSaving(false)
+    }
+  }
 
-  useEffect(() => {
-    if (authState !== 'ready' || !user || !canWrite) return
-    const q = query(collection(db, 'matchings'), orderBy('createdAt', 'desc'))
-    unsubMatchings.current = onSnapshot(q, snap => setMatchings(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
-    return () => unsubMatchings.current?.()
-  }, [authState, user, canWrite])
-
+  // ── 성별 저장 ────────────────────────────────────
   const handleGenderSelect = async (gender) => {
     if (!user || genderSaving) return
     setGenderSaving(true)
     try {
-      await setDoc(doc(db, 'users', user.uid), { gender, email: user.email, displayName: user.displayName || '', role: '일반인', createdAt: serverTimestamp() }, { merge: true })
-      setUserGender(gender); setAuthState('ready')
-    } catch { alert('성별 저장에 실패했습니다.') }
-    finally { setGenderSaving(false) }
+      await updateDoc(doc(db, 'users', user.uid), { gender })
+      setUserGender(gender)
+      setAuthState('ready')
+    } catch (err) {
+      alert('성별 저장 실패: ' + err.message)
+    } finally {
+      setGenderSaving(false)
+    }
   }
+
+  // ── 프로필 구독 ──────────────────────────────────
+  useEffect(() => {
+    if (authState !== 'ready' || !user) return
+    const q = query(collection(db, 'profiles'), orderBy('createdAt', 'desc'))
+    unsubProfiles.current = onSnapshot(q, snap => {
+      setProfiles(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return () => unsubProfiles.current?.()
+  }, [authState, user])
+
+  // ── 매칭 구독 ────────────────────────────────────
+  useEffect(() => {
+    if (authState !== 'ready' || !user || !canWrite) return
+    const q = query(collection(db, 'matchings'), orderBy('createdAt', 'desc'))
+    unsubMatchings.current = onSnapshot(q, snap => {
+      setMatchings(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return () => unsubMatchings.current?.()
+  }, [authState, user, canWrite])
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
 
+  // ── 관심 표현 ────────────────────────────────────
   const handleLike = async (id, currentLiked) => {
     try {
       await updateDoc(doc(db, 'profiles', id), { liked: !currentLiked })
@@ -131,6 +214,7 @@ export default function App() {
     } catch { showToast('❌ 오류가 발생했습니다.') }
   }
 
+  // ── 프로필 액션 (삭제/숨김) ──────────────────────
   const handleProfileAction = async (id, action, value) => {
     try {
       if (action === 'delete') {
@@ -138,11 +222,16 @@ export default function App() {
         showToast('🗑️ 삭제되었습니다.')
       } else if (action === 'toggle') {
         await updateDoc(doc(db, 'profiles', id), { hidden: value })
+        // selected 업데이트
+        setSelected(prev => prev?.id === id ? { ...prev, hidden: value } : prev)
         showToast(value ? '🙈 숨김 처리됐습니다.' : '👁️ 다시 표시됐습니다.')
       }
-    } catch { showToast('❌ 처리 실패했습니다.') }
+    } catch (err) {
+      showToast('❌ 처리 실패: ' + err.message)
+    }
   }
 
+  // ── 프로필 저장 ──────────────────────────────────
   const handleSubmit = async (formData) => {
     setFormLoading(true)
     try {
@@ -159,36 +248,65 @@ export default function App() {
         showToast('✓ 프로필이 등록되었습니다! 💕')
       }
       setShowRegister(false)
-    } catch (e) { showToast('❌ 저장 실패: ' + e.message) }
-    finally { setFormLoading(false) }
+    } catch (e) {
+      showToast('❌ 저장 실패: ' + e.message)
+    } finally {
+      setFormLoading(false)
+    }
   }
 
+  // ── 프로필 수정 ──────────────────────────────────
   const handleEdit = (profile) => {
     setEditingProfile(profile)
     setShowRegister(true)
     setSelected(null)
   }
 
+  // ── 로그아웃 ─────────────────────────────────────
   const handleLogout = async () => {
-    unsubProfiles.current?.(); unsubMatchings.current?.()
+    unsubProfiles.current?.()
+    unsubMatchings.current?.()
     await signOut(auth)
-    setUser(null); setUserRole(null); setUserGender(null)
-    setAuthState('loggedOut'); setProfiles([]); setMatchings([])
+    setUser(null); setUserRole('일반인'); setUserGender(null)
+    setAuthState('loggedOut')
+    setProfiles([]); setMatchings([])
   }
 
-  if (authState === 'loading')    return <Loading text={user ? '사용자 정보 확인 중...' : '로딩 중...'} />
-  if (authState === 'loggedOut')  return <LoginPage />
-  if (authState === 'needGender') return <GenderSetup onSelect={handleGenderSelect} loading={genderSaving} />
+  // ── 탈퇴 ─────────────────────────────────────────
+  const handleWithdraw = async () => {
+    if (!window.confirm('정말로 탈퇴하시겠어요?\n모든 정보가 삭제되며 복구할 수 없습니다.')) return
+    try {
+      // Firestore 사용자 문서 삭제
+      await deleteDoc(doc(db, 'users', user.uid))
+      // Firebase Auth 계정 삭제
+      await deleteUser(auth.currentUser)
+      showToast('탈퇴가 완료되었습니다.')
+    } catch (err) {
+      if (err.code === 'auth/requires-recent-login') {
+        alert('보안을 위해 재로그인 후 탈퇴해주세요.\n로그아웃 후 다시 로그인하고 탈퇴를 시도해주세요.')
+      } else {
+        alert('탈퇴 실패: ' + err.message)
+      }
+    }
+  }
 
+  // ── 화면 분기 ────────────────────────────────────
+  if (authState === 'loading')     return <Loading text={user ? '정보 확인 중...' : '로딩 중...'} />
+  if (authState === 'loggedOut')   return <LoginPage />
+  if (authState === 'needConsent') return (
+    <ConsentModal onAgree={handleConsent} loading={consentSaving} />
+  )
+  if (authState === 'needGender')  return (
+    <GenderSetup onSelect={handleGenderSelect} loading={genderSaving} />
+  )
+
+  // ── 메인 화면 ────────────────────────────────────
   const oppositeGender = userGender === '여' ? '남' : '여'
 
   const filtered = profiles.filter(p => {
-    // 숨김 처리된 프로필 (짱/일진은 showHidden 토글로 볼 수 있음)
     if (p.hidden && !canWrite) return false
     if (p.hidden && canWrite && !showHidden) return false
-    // 일반인: 이성만
     if (!canWrite && p.gender !== oppositeGender) return false
-    // 성별 필터 (짱/일진)
     if (canWrite && filterGender !== '전체' && p.gender !== filterGender) return false
     const q = search.trim()
     if (q && !p.name?.includes(q) && !p.job?.includes(q) && !p.region?.includes(q) && !p.city?.includes(q)) return false
@@ -201,18 +319,18 @@ export default function App() {
   const tabs = [
     { key: 'profiles', label: '💕', text: '프로필' },
     ...(canWrite ? [{ key: 'matching', label: '📋', text: '매칭' }] : []),
-    ...(isAdmin ? [{ key: 'roles', label: '🔑', text: '권한' }] : []),
+    ...(isAdmin  ? [{ key: 'roles',   label: '🔑', text: '권한' }] : []),
   ]
 
   const roleBadge = isAdmin ? { label: '짱', bg: '#e05a7a', color: '#fff' }
-    : isJinj ? { label: '일진', bg: '#3a6fa8', color: '#fff' }
+    : userRole === '일진' ? { label: '일진', bg: '#3a6fa8', color: '#fff' }
     : { label: '일반인', bg: '#f0dce6', color: '#9c6278' }
 
   return (
     <div style={{ minHeight: '100vh', background: '#fdf6f8', maxWidth: 480, margin: '0 auto' }}>
       <style>{`* { -webkit-tap-highlight-color: transparent; }`}</style>
 
-      {/* 헤더 */}
+      {/* ── 헤더 ── */}
       <div style={{ background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f5e0e8', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -220,7 +338,7 @@ export default function App() {
             <span style={{ fontWeight: 800, fontSize: 16, color: '#c94070' }}>마음이음</span>
             <span style={{ fontSize: 10, color: roleBadge.color, background: roleBadge.bg, padding: '2px 7px', borderRadius: 8, fontWeight: 700 }}>{roleBadge.label}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
             {!showRegister && (
               <button onClick={() => { setEditingProfile(null); setShowRegister(true) }} style={{ background: '#e05a7a', color: '#fff', border: 'none', borderRadius: 10, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 + 등록
@@ -238,7 +356,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* 탭 */}
         {!showRegister && (
           <div style={{ display: 'flex', borderTop: '1px solid #f5e0e8' }}>
             {tabs.map(t => (
@@ -251,8 +368,8 @@ export default function App() {
         )}
       </div>
 
-      {/* 본문 */}
-      <div style={{ padding: '16px 14px', paddingBottom: 80 }}>
+      {/* ── 본문 ── */}
+      <div style={{ padding: '16px 14px', paddingBottom: 90 }}>
 
         {/* 등록/수정 폼 */}
         {showRegister && (
@@ -279,7 +396,7 @@ export default function App() {
             {/* 통계 */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto', paddingBottom: 4 }}>
               {[
-                { emoji: '💕', label: '전체', value: `${profiles.filter(p=>!p.hidden).length}명` },
+                { emoji: '💕', label: '전체', value: `${profiles.filter(p => !p.hidden).length}명` },
                 { emoji: '❤️', label: '관심', value: `${likedCount}명` },
                 ...(canWrite ? [
                   { emoji: '💝', label: '매칭', value: `${matchings.length}건` },
@@ -311,8 +428,8 @@ export default function App() {
                     </button>
                   ))}
                   {hiddenCount > 0 && (
-                    <button onClick={() => setShowHidden(h => !h)} style={{ padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${showHidden ? '#9c6278' : '#f0dce6'}`, background: showHidden ? '#f5e0e8' : '#fff', color: showHidden ? '#9c6278' : '#b08898' }}>
-                      {showHidden ? '🙈 숨김 표시 중' : '🙈 숨김 보기'}
+                    <button onClick={() => setShowHidden(h => !h)} style={{ padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${showHidden ? '#9c6278' : '#f0dce6'}`, background: showHidden ? '#f5e0e8' : '#fff', color: showHidden ? '#9c6278' : '#b08898', whiteSpace: 'nowrap' }}>
+                      {showHidden ? '🙈 숨김중' : '🙈 숨김보기'}
                     </button>
                   )}
                 </div>
@@ -329,15 +446,17 @@ export default function App() {
               ? (
                 <div style={{ textAlign: 'center', padding: '60px 0', color: '#c0a0b0' }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>🌸</div>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{profiles.length === 0 ? '아직 등록된 프로필이 없어요' : '검색 결과가 없습니다'}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    {profiles.length === 0 ? '아직 등록된 프로필이 없어요' : '검색 결과가 없습니다'}
+                  </div>
                 </div>
               )
               : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {filtered.map(p => (
                     <div key={p.id} style={{ position: 'relative' }}>
-                      {p.hidden && (
-                        <div style={{ position: 'absolute', top: 8, left: 8, background: '#9c6278', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 7px', zIndex: 1 }}>🙈 숨김</div>
+                      {p.hidden && canWrite && (
+                        <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(156,98,120,0.85)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 7px', zIndex: 1 }}>🙈 숨김</div>
                       )}
                       <ProfileCard profile={p} onOpen={setSelected} onLike={handleLike} />
                     </div>
@@ -366,7 +485,7 @@ export default function App() {
         />
       )}
 
-      {/* 하단 바 */}
+      {/* ── 하단 바 ── */}
       <div style={{
         position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
         width: '100%', maxWidth: 480,
@@ -379,14 +498,47 @@ export default function App() {
             ? <img src={user.photoURL} style={{ width: 26, height: 26, borderRadius: '50%' }} alt="" />
             : <Avatar name={user.displayName || '?'} size={26} />
           }
-          <span style={{ fontSize: 12, color: '#6b4458', fontWeight: 500, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 12, color: '#6b4458', fontWeight: 500, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user.displayName || user.email}
           </span>
         </div>
-        <button onClick={handleLogout} style={{ background: '#f5e0e8', color: '#c94070', border: 'none', borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          로그아웃
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setShowWithdraw(true)}
+            style={{ background: '#fff', color: '#c0a0b0', border: '1px solid #f0dce6', borderRadius: 10, padding: '7px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            탈퇴
+          </button>
+          <button
+            onClick={handleLogout}
+            style={{ background: '#f5e0e8', color: '#c94070', border: 'none', borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
+
+      {/* 탈퇴 확인 모달 */}
+      {showWithdraw && (
+        <div onClick={() => setShowWithdraw(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(40,15,25,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 340, textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>😢</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: '#2d1a22', marginBottom: 8 }}>정말 탈퇴하시겠어요?</div>
+            <div style={{ fontSize: 13, color: '#b08898', marginBottom: 24, lineHeight: 1.6 }}>
+              탈퇴 시 계정 정보가 삭제됩니다.<br />
+              등록하신 프로필은 별도로 삭제되지 않습니다.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowWithdraw(false)} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid #f0dce6', background: '#fff', color: '#b08898', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                취소
+              </button>
+              <button onClick={() => { setShowWithdraw(false); handleWithdraw() }} style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: '#e05a7a', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                탈퇴하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast msg={toast} />
     </div>
