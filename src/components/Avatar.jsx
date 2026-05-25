@@ -23,7 +23,7 @@ export default function Avatar({ name = '?', size = 84 }) {
       fontSize: size * 0.38, fontWeight: 700, flexShrink: 0,
       userSelect: 'none', border: '2px solid rgba(255,255,255,0.8)',
     }}>
-      {name[0] || '?'}
+      {(name || '?')[0]}
     </div>
   )
 }

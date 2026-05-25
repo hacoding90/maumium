@@ -1,18 +1,21 @@
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase.js'
 
-export default function LoginPage() {
-  const handleGoogleLogin = async () => {
+export default function LoginPage({ error }) {
+  const handleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider)
     } catch (e) {
-      alert('로그인에 실패했습니다. 다시 시도해주세요.')
+      if (e.code !== 'auth/popup-closed-by-user') {
+        alert('로그인에 실패했습니다. 다시 시도해주세요.')
+      }
     }
   }
 
   return (
     <div style={{
-      minHeight: '100vh', background: 'linear-gradient(135deg,#fdf0f4,#f5e0ec,#fdf6f8)',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg,#fdf0f4,#f5e0ec,#fdf6f8)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
       <div style={{
@@ -22,15 +25,19 @@ export default function LoginPage() {
         border: '1px solid #f5e0e8',
       }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>🌸</div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#2d1a22', marginBottom: 8, letterSpacing: -0.5 }}>
-          마음이음
-        </h1>
-        <p style={{ fontSize: 14, color: '#b08898', marginBottom: 36, lineHeight: 1.6 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#2d1a22', marginBottom: 8 }}>마음이음</h1>
+        <p style={{ fontSize: 14, color: '#b08898', marginBottom: 36, lineHeight: 1.7 }}>
           소중한 인연을 이어드립니다<br />구글 계정으로 로그인해주세요
         </p>
 
+        {error && (
+          <div style={{ background: '#fff0f0', border: '1px solid #fcc', borderRadius: 10, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#a02020' }}>
+            {error}
+          </div>
+        )}
+
         <button
-          onClick={handleGoogleLogin}
+          onClick={handleLogin}
           style={{
             width: '100%', padding: '14px', borderRadius: 14,
             border: '1.5px solid #e8e0e4', background: '#fff',
@@ -49,7 +56,6 @@ export default function LoginPage() {
           </svg>
           Google로 로그인
         </button>
-
         <p style={{ fontSize: 12, color: '#c0a0b0', marginTop: 24, lineHeight: 1.6 }}>
           로그인 시 서비스 이용약관 및<br />개인정보 처리방침에 동의하게 됩니다
         </p>
