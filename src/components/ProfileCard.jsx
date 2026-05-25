@@ -3,69 +3,97 @@ import Avatar from './Avatar.jsx'
 
 function Tag({ children, bg = '#f3e8ee', color = '#a0415d' }) {
   return (
-    <span style={{ display: 'inline-block', background: bg, color, borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 500 }}>
+    <span style={{ display: 'inline-block', background: bg, color, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
       {children}
     </span>
   )
 }
 
 const currentYear = new Date().getFullYear()
-const getAge = (p) => p.birthYear ? currentYear - p.birthYear + 1 : p.age
+const getAge = (p) => p.birthYear ? currentYear - p.birthYear : p.age
 
-export default function ProfileCard({ profile, onOpen, onLike, isAdmin }) {
-  const [hovered, setHovered] = useState(false)
+export default function ProfileCard({ profile, onOpen, onLike }) {
+  const [pressed, setPressed] = useState(false)
   const age = getAge(profile)
+  const mainPhoto = profile.photos?.[0]
 
   return (
     <div
       onClick={() => onOpen(profile)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onTouchStart={() => setPressed(true)}
+      onTouchEnd={() => setPressed(false)}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
       style={{
-        background: '#fff', borderRadius: 20,
-        boxShadow: hovered ? '0 8px 32px rgba(180,80,100,0.16)' : '0 2px 16px rgba(180,80,100,0.08)',
+        background: '#fff', borderRadius: 18,
+        boxShadow: pressed ? '0 1px 6px rgba(180,80,100,0.1)' : '0 4px 20px rgba(180,80,100,0.1)',
         border: '1px solid #f5e0e8', cursor: 'pointer',
-        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-        transition: 'all 0.18s', display: 'flex', flexDirection: 'column',
+        transform: pressed ? 'scale(0.98)' : 'scale(1)',
+        transition: 'all 0.15s', overflow: 'hidden',
+        display: 'flex', flexDirection: 'row',
       }}
     >
-      <div style={{ position: 'relative', background: 'linear-gradient(135deg,#fdf0f4,#f5e0ec)', padding: '28px 0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: '20px 20px 0 0' }}>
-        <Avatar name={profile.name} size={84} />
-        <button
-          onClick={e => { e.stopPropagation(); onLike(profile.id, profile.liked) }}
-          style={{ position: 'absolute', top: 12, right: 14, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }}
-        >
-          {profile.liked ? '❤️' : '🤍'}
-        </button>
-        <div style={{ marginTop: 10, fontWeight: 700, fontSize: 17, color: '#2d1a22' }}>{profile.name}</div>
-        <div style={{ fontSize: 13, color: '#9c6278', marginTop: 2 }}>
-          {profile.gender === '남' ? '♂' : '♀'} {profile.birthYear ? `${profile.birthYear}년생` : `${age}세`} · {profile.region}
+      {/* 왼쪽 사진/아바타 */}
+      <div style={{
+        background: 'linear-gradient(160deg,#fdf0f4,#f5d8e8)',
+        width: 90, flexShrink: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '16px 0',
+      }}>
+        {mainPhoto
+          ? <img src={mainPhoto} alt={profile.name} style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255,255,255,0.8)' }} />
+          : <Avatar name={profile.name} size={60} />
+        }
+        <div style={{ marginTop: 6, fontSize: 11, color: '#9c6278', fontWeight: 600 }}>
+          {profile.gender === '남' ? '♂ 남성' : '♀ 여성'}
         </div>
+        {profile.matchmakerName && (
+          <div style={{ fontSize: 9, color: '#c97090', marginTop: 2, background: '#fde8ef', padding: '1px 6px', borderRadius: 6, fontWeight: 600 }}>
+            💕{profile.matchmakerName}
+          </div>
+        )}
       </div>
 
-      <div style={{ padding: '14px 18px 18px', display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {/* 오른쪽 정보 */}
+      <div style={{ flex: 1, padding: '14px 14px 14px 12px', display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#2d1a22' }}>{profile.name}</div>
+            <div style={{ fontSize: 12, color: '#9c6278', marginTop: 1 }}>
+              {profile.birthYear ? `${profile.birthYear}년생` : `${age}세`}
+              {profile.city ? ` · ${profile.city}` : profile.region ? ` · ${profile.region}` : ''}
+            </div>
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); onLike(profile.id, profile.liked) }}
+            style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', padding: '2px', lineHeight: 1, flexShrink: 0 }}
+          >
+            {profile.liked ? '❤️' : '🤍'}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           <Tag>{profile.job}</Tag>
-          <Tag bg="#e8f0fa" color="#2a4a7a">{profile.height}cm</Tag>
+          {profile.heightRange && <Tag bg="#e8f0fa" color="#2a4a7a">{profile.heightRange}cm</Tag>}
           {profile.mbti && <Tag bg="#ede8fa" color="#5a3a9a">{profile.mbti}</Tag>}
         </div>
 
-        {/* 직장명 표시 */}
         {profile.workplace && (
-          <div style={{ fontSize: 12, color: '#9c6278', display: 'flex', alignItems: 'center', gap: 4 }}>
-            🏢 {profile.workplace}
-          </div>
+          <div style={{ fontSize: 12, color: '#9c6278' }}>🏢 {profile.workplace}</div>
         )}
 
-        <p style={{ margin: 0, fontSize: 13, color: '#6b4458', lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-          {profile.intro || '소개글이 없습니다.'}
-        </p>
-        <div style={{ paddingTop: 10, borderTop: '1px solid #f5e0e8' }}>
-          <div style={{ fontSize: 11, color: '#b08898', fontWeight: 600, marginBottom: 4 }}>이상형</div>
-          <div style={{ fontSize: 12, color: '#7a4a5e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-            {profile.idealDesc || '이상형 정보 없음'}
+        {profile.intro && (
+          <p style={{ margin: 0, fontSize: 12, color: '#7a4a5e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+            {profile.intro}
+          </p>
+        )}
+
+        {profile.idealDesc && (
+          <div style={{ paddingTop: 5, borderTop: '1px solid #f5e0e8', fontSize: 11, color: '#b08898', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            💝 {profile.idealDesc}
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

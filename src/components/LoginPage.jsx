@@ -1,8 +1,18 @@
+import { useState } from 'react'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase.js'
+import ConsentModal from './ConsentModal.jsx'
 
 export default function LoginPage() {
-  const handleLogin = async () => {
+  const [showConsent, setShowConsent] = useState(false)
+  const [consented, setConsented] = useState(false)
+
+  const handleLoginClick = () => {
+    if (!consented) { setShowConsent(true); return }
+    doLogin()
+  }
+
+  const doLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider)
     } catch (e) {
@@ -11,40 +21,55 @@ export default function LoginPage() {
         alert('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.')
         return
       }
-      alert('로그인에 실패했습니다: ' + e.message)
+      alert('로그인 오류: ' + e.message)
     }
+  }
+
+  const handleConsent = () => {
+    setConsented(true)
+    setShowConsent(false)
+    setTimeout(doLogin, 100)
   }
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg,#fdf0f4,#f5e0ec,#fdf6f8)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      background: 'linear-gradient(160deg,#fdf0f4 0%,#f5e0ec 50%,#fdf6f8 100%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24,
     }}>
+      {/* 로고 영역 */}
+      <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🌸</div>
+        <h1 style={{ fontSize: 32, fontWeight: 800, color: '#2d1a22', marginBottom: 8, letterSpacing: -1 }}>마음이음</h1>
+        <p style={{ fontSize: 15, color: '#b08898', lineHeight: 1.7 }}>
+          소중한 인연을 이어드립니다<br />
+          <span style={{ fontSize: 13 }}>지인 추천 소개팅 서비스</span>
+        </p>
+      </div>
+
+      {/* 로그인 카드 */}
       <div style={{
-        background: '#fff', borderRadius: 28, padding: '48px 40px',
-        maxWidth: 400, width: '100%', textAlign: 'center',
-        boxShadow: '0 8px 48px rgba(180,80,100,0.15)',
+        background: '#fff', borderRadius: 24, padding: '32px 28px',
+        width: '100%', maxWidth: 360,
+        boxShadow: '0 8px 48px rgba(180,80,100,0.12)',
         border: '1px solid #f5e0e8',
       }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🌸</div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#2d1a22', marginBottom: 8 }}>마음이음</h1>
-        <p style={{ fontSize: 14, color: '#b08898', marginBottom: 36, lineHeight: 1.7 }}>
-          소중한 인연을 이어드립니다<br />구글 계정으로 로그인해주세요
-        </p>
+        <div style={{ fontSize: 14, color: '#9c6278', marginBottom: 20, textAlign: 'center', fontWeight: 500 }}>
+          구글 계정으로 간편 로그인
+        </div>
         <button
-          onClick={handleLogin}
+          onClick={handleLoginClick}
           style={{
-            width: '100%', padding: '14px', borderRadius: 14,
+            width: '100%', padding: '15px', borderRadius: 14,
             border: '1.5px solid #e8e0e4', background: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-            fontSize: 15, fontWeight: 600, color: '#3a1e28', cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'all 0.15s',
+            fontSize: 15, fontWeight: 700, color: '#3a1e28', cursor: 'pointer',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.06)', transition: 'all 0.15s',
           }}
           onMouseEnter={e => e.currentTarget.style.background = '#fdf6f8'}
           onMouseLeave={e => e.currentTarget.style.background = '#fff'}
         >
-          <svg width="20" height="20" viewBox="0 0 48 48">
+          <svg width="22" height="22" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
             <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
@@ -52,10 +77,13 @@ export default function LoginPage() {
           </svg>
           Google로 로그인
         </button>
-        <p style={{ fontSize: 12, color: '#c0a0b0', marginTop: 24, lineHeight: 1.6 }}>
-          로그인 시 팝업 창이 열립니다<br />팝업 차단을 해제해주세요
+
+        <p style={{ fontSize: 11, color: '#c0a0b0', marginTop: 16, textAlign: 'center', lineHeight: 1.6 }}>
+          로그인 시 개인정보 처리방침 및<br />서비스 이용약관에 동의하게 됩니다
         </p>
       </div>
+
+      {showConsent && <ConsentModal onAgree={handleConsent} />}
     </div>
   )
 }

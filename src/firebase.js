@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 
-// ✅ API 키를 .env 파일에서 불러옵니다 (코드에 직접 입력 금지!)
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -17,8 +16,12 @@ export const db   = getFirestore(app)
 export const auth = getAuth(app)
 export const googleProvider = new GoogleAuthProvider()
 
-// ✅ 관리자 이메일도 .env에서 불러옵니다
+// 권한 체계: 짱(admin) > 일진(juseonja) > 일반인(user)
 export const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || '')
-  .split(',')
-  .map(e => e.trim())
-  .filter(Boolean)
+  .split(',').map(e => e.trim()).filter(Boolean)
+
+export const ROLES = {
+  짱: { label: '짱', bg: '#e05a7a', color: '#fff', canAll: true },
+  일진: { label: '일진', bg: '#3a6fa8', color: '#fff', canWrite: true },
+  일반인: { label: '일반인', bg: '#f0dce6', color: '#9c6278', canRegister: true },
+}
