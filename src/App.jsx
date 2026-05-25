@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, query, orderBy, setDoc, getDoc,
@@ -40,48 +40,6 @@ function Loading({ text = '로딩 중...' }) {
   )
 }
 
-async function loadUserState(u, setIsAdmin, setIsJuseonja, setUserRole, setUserGender) {
-  const adminByEmail = ADMIN_EMAILS.includes(u.email)
-
-  try {
-    const snap = await getDoc(doc(db, 'users', u.uid))
-
-    if (adminByEmail) {
-      await setDoc(doc(db, 'users', u.uid), {
-        role: 'admin', email: u.email,
-        displayName: u.displayName || '',
-        updatedAt: serverTimestamp(),
-      }, { merge: true })
-      setUserRole('admin')
-      setIsAdmin(true)
-      setIsJuseonja(false)
-      return 'ready'
-    }
-
-    if (snap.exists()) {
-      const data = snap.data()
-      const role = data.role || null
-      setUserRole(role)
-      setIsAdmin(false)
-      setIsJuseonja(JUSEONJA_ROLES.includes(role))
-      if (data.gender) {
-        setUserGender(data.gender)
-        return 'ready'
-      }
-      return 'needGender'
-    }
-
-    // 첫 로그인
-    setUserRole(null); setIsAdmin(false); setIsJuseonja(false)
-    return 'needGender'
-
-  } catch (err) {
-    console.warn('사용자 정보 로드 실패:', err.message)
-    if (adminByEmail) { setIsAdmin(true); return 'ready' }
-    return 'needGender'
-  }
-}
-
 export default function App() {
   const [authState, setAuthState]       = useState('loading')
   const [user, setUser]                 = useState(null)
@@ -104,39 +62,67 @@ export default function App() {
   const unsubProfiles  = useRef(null)
   const unsubMatchings = useRef(null)
 
-  // ── 핵심: getRedirectResult 먼저 처리 후 onAuthStateChanged ──
+  // ── 인증 상태 감지 ──────────────────────────────
   useEffect(() => {
-    let authUnsub = null
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      unsubProfiles.current?.()
+      unsubMatchings.current?.()
 
-    const init = async () => {
-      // 1. 리다이렉트 결과 먼저 처리 (로그인 후 돌아왔을 때)
-      try {
-        await getRedirectResult(auth)
-      } catch (err) {
-        console.warn('리다이렉트 결과 처리 오류:', err.message)
+      if (!u) {
+        setUser(null); setIsAdmin(false); setIsJuseonja(false)
+        setUserRole(null); setUserGender(null)
+        setAuthState('loggedOut')
+        return
       }
 
-      // 2. 리다이렉트 처리 완료 후 인증 상태 구독 시작
-      authUnsub = onAuthStateChanged(auth, async (u) => {
-        unsubProfiles.current?.()
-        unsubMatchings.current?.()
+      setUser(u)
+      setAuthState('loading')
 
-        if (!u) {
-          setUser(null); setIsAdmin(false); setIsJuseonja(false)
-          setUserRole(null); setUserGender(null)
-          setAuthState('loggedOut')
+      const adminByEmail = ADMIN_EMAILS.includes(u.email)
+
+      try {
+        const snap = await getDoc(doc(db, 'users', u.uid))
+
+        if (adminByEmail) {
+          await setDoc(doc(db, 'users', u.uid), {
+            role: 'admin', email: u.email,
+            displayName: u.displayName || '',
+            updatedAt: serverTimestamp(),
+          }, { merge: true })
+          setUserRole('admin')
+          setIsAdmin(true)
+          setIsJuseonja(false)
+          setAuthState('ready')
           return
         }
 
-        setUser(u)
-        setAuthState('loading') // 사용자 정보 로드 중
-        const nextState = await loadUserState(u, setIsAdmin, setIsJuseonja, setUserRole, setUserGender)
-        setAuthState(nextState)
-      })
-    }
-
-    init()
-    return () => authUnsub?.()
+        if (snap.exists() && snap.data()?.gender) {
+          const data = snap.data()
+          const role = data.role || null
+          setUserRole(role)
+          setIsAdmin(false)
+          setIsJuseonja(JUSEONJA_ROLES.includes(role))
+          setUserGender(data.gender)
+          setAuthState('ready')
+        } else {
+          // 첫 로그인 또는 성별 미설정
+          const role = snap.exists() ? snap.data()?.role || null : null
+          setUserRole(role)
+          setIsAdmin(false)
+          setIsJuseonja(JUSEONJA_ROLES.includes(role))
+          setAuthState('needGender')
+        }
+      } catch (err) {
+        console.error('사용자 정보 로드 실패:', err)
+        if (adminByEmail) {
+          setIsAdmin(true)
+          setAuthState('ready')
+        } else {
+          setAuthState('needGender')
+        }
+      }
+    })
+    return unsub
   }, [])
 
   // ── 프로필 구독 ──────────────────────────────────
@@ -174,7 +160,7 @@ export default function App() {
       setUserGender(gender)
       setAuthState('ready')
     } catch {
-      alert('성별 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      alert('성별 저장에 실패했습니다.')
     } finally {
       setGenderSaving(false)
     }
@@ -239,24 +225,17 @@ export default function App() {
 
   const roleBadge = isAdmin
     ? { label: '관리자', bg: '#e05a7a', color: '#fff' }
-    : isJuseonja
-      ? { label: userRole, bg: '#3a6fa8', color: '#fff' }
-      : null
+    : isJuseonja ? { label: userRole, bg: '#3a6fa8', color: '#fff' }
+    : null
 
   return (
     <div style={{ minHeight: '100vh', background: '#fdf6f8' }}>
-
-      {/* 헤더 */}
       <div style={{ background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f5e0e8', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 22 }}>🌸</span>
             <span style={{ fontWeight: 800, fontSize: 18, color: '#c94070' }}>마음이음</span>
-            {roleBadge && (
-              <span style={{ fontSize: 11, color: roleBadge.color, background: roleBadge.bg, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
-                {roleBadge.label}
-              </span>
-            )}
+            {roleBadge && <span style={{ fontSize: 11, color: roleBadge.color, background: roleBadge.bg, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>{roleBadge.label}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {view === 'browse' && canWrite && tab === 'profiles' && (
@@ -266,29 +245,16 @@ export default function App() {
               <button onClick={() => setView('browse')} style={{ background: 'none', border: 'none', color: '#b08898', fontSize: 13, cursor: 'pointer' }}>← 목록</button>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {user.photoURL
-                ? <img src={user.photoURL} style={{ width: 32, height: 32, borderRadius: '50%' }} alt="" />
-                : <Avatar name={user.displayName || '?'} size={32} />
-              }
-              <span style={{ fontSize: 12, color: '#9c6278', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user.displayName || user.email}
-              </span>
-              <button onClick={handleLogout} style={{ background: 'none', border: '1px solid #f0dce6', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: '#b08898', cursor: 'pointer' }}>
-                로그아웃
-              </button>
+              {user.photoURL ? <img src={user.photoURL} style={{ width: 32, height: 32, borderRadius: '50%' }} alt="" /> : <Avatar name={user.displayName || '?'} size={32} />}
+              <span style={{ fontSize: 12, color: '#9c6278', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.displayName || user.email}</span>
+              <button onClick={handleLogout} style={{ background: 'none', border: '1px solid #f0dce6', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: '#b08898', cursor: 'pointer' }}>로그아웃</button>
             </div>
           </div>
         </div>
-
         {view === 'browse' && (
           <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 20px', display: 'flex', borderTop: '1px solid #f5e0e8' }}>
             {tabs.map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} style={{
-                padding: '12px 20px', background: 'none', border: 'none',
-                borderBottom: tab === t.key ? '2px solid #e05a7a' : '2px solid transparent',
-                color: tab === t.key ? '#e05a7a' : '#b08898',
-                fontSize: 13, fontWeight: tab === t.key ? 700 : 500, cursor: 'pointer',
-              }}>
+              <button key={t.key} onClick={() => setTab(t.key)} style={{ padding: '12px 20px', background: 'none', border: 'none', borderBottom: tab === t.key ? '2px solid #e05a7a' : '2px solid transparent', color: tab === t.key ? '#e05a7a' : '#b08898', fontSize: 13, fontWeight: tab === t.key ? 700 : 500, cursor: 'pointer' }}>
                 {t.label}
               </button>
             ))}
@@ -296,9 +262,7 @@ export default function App() {
         )}
       </div>
 
-      {/* 본문 */}
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 20px' }}>
-
         {view === 'register' && (
           <div style={{ maxWidth: 520, margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
@@ -327,26 +291,19 @@ export default function App() {
                 </div>
               ))}
             </div>
-
             <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-              <input
-                value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="🔍 이름, 직업, 지역 검색..."
-                style={{ flex: 1, minWidth: 160, padding: '9px 14px', borderRadius: 12, border: '1.5px solid #f0dce6', fontSize: 13, color: '#3a1e28', outline: 'none', background: '#fff' }}
-              />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 이름, 직업, 지역 검색..." style={{ flex: 1, minWidth: 160, padding: '9px 14px', borderRadius: 12, border: '1.5px solid #f0dce6', fontSize: 13, color: '#3a1e28', outline: 'none', background: '#fff' }} />
               {canWrite && ['전체', '여', '남'].map(g => (
                 <button key={g} onClick={() => setFilterGender(g)} style={{ padding: '8px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${filterGender === g ? '#e05a7a' : '#f0dce6'}`, background: filterGender === g ? '#e05a7a' : '#fff', color: filterGender === g ? '#fff' : '#b08898' }}>
                   {g === '전체' ? '전체' : g === '여' ? '♀ 여성' : '♂ 남성'}
                 </button>
               ))}
             </div>
-
             {!canWrite && (
               <div style={{ background: '#fdf6f9', borderRadius: 12, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#9c6278', border: '1px solid #f5e0e8' }}>
                 💡 {oppositeGender === '남' ? '남성' : '여성'} 프로필만 열람 가능합니다.
               </div>
             )}
-
             {filtered.length === 0
               ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#c0a0b0' }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>🌸</div>
@@ -362,15 +319,10 @@ export default function App() {
         {view === 'browse' && tab === 'matching' && canWrite && (
           <MatchingTab profiles={profiles} matchings={matchings} isAdmin={canWrite} />
         )}
-
-        {view === 'browse' && tab === 'roles' && isAdmin && (
-          <RoleManager />
-        )}
+        {view === 'browse' && tab === 'roles' && isAdmin && <RoleManager />}
       </div>
 
-      {selected && (
-        <ProfileModal profile={selected} onClose={() => setSelected(null)} onLike={handleLike} onDelete={handleDelete} isAdmin={canWrite} />
-      )}
+      {selected && <ProfileModal profile={selected} onClose={() => setSelected(null)} onLike={handleLike} onDelete={handleDelete} isAdmin={canWrite} />}
       <Toast msg={toast} />
     </div>
   )

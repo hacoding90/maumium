@@ -1,12 +1,17 @@
-import { signInWithRedirect } from 'firebase/auth'
+import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase.js'
 
-export default function LoginPage({ error }) {
+export default function LoginPage() {
   const handleLogin = async () => {
     try {
-      await signInWithRedirect(auth, googleProvider)
+      await signInWithPopup(auth, googleProvider)
     } catch (e) {
-      alert('로그인에 실패했습니다. 다시 시도해주세요.')
+      if (e.code === 'auth/popup-closed-by-user') return
+      if (e.code === 'auth/popup-blocked') {
+        alert('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.')
+        return
+      }
+      alert('로그인에 실패했습니다: ' + e.message)
     }
   }
 
@@ -27,13 +32,6 @@ export default function LoginPage({ error }) {
         <p style={{ fontSize: 14, color: '#b08898', marginBottom: 36, lineHeight: 1.7 }}>
           소중한 인연을 이어드립니다<br />구글 계정으로 로그인해주세요
         </p>
-
-        {error && (
-          <div style={{ background: '#fff0f0', border: '1px solid #fcc', borderRadius: 10, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#a02020' }}>
-            {error}
-          </div>
-        )}
-
         <button
           onClick={handleLogin}
           style={{
@@ -55,7 +53,7 @@ export default function LoginPage({ error }) {
           Google로 로그인
         </button>
         <p style={{ fontSize: 12, color: '#c0a0b0', marginTop: 24, lineHeight: 1.6 }}>
-          로그인 시 서비스 이용약관 및<br />개인정보 처리방침에 동의하게 됩니다
+          로그인 시 팝업 창이 열립니다<br />팝업 차단을 해제해주세요
         </p>
       </div>
     </div>
