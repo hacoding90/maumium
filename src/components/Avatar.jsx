@@ -1,10 +1,10 @@
 const COLORS = [
-  { bg: '#fde8ef', text: '#c94070' },
-  { bg: '#dce8f5', text: '#2a5a9a' },
-  { bg: '#ddf5e8', text: '#1a7a4a' },
-  { bg: '#f5eddd', text: '#8a6010' },
-  { bg: '#ecddf5', text: '#7a2a9a' },
-  { bg: '#ddf0f5', text: '#1a6a7a' },
+  { bg: '#FFD6E0', text: '#C2185B' },
+  { bg: '#D6E4FF', text: '#1565C0' },
+  { bg: '#D6F5E3', text: '#1B5E20' },
+  { bg: '#FFF3D6', text: '#E65100' },
+  { bg: '#EDD6FF', text: '#6A1B9A' },
+  { bg: '#D6F0FF', text: '#01579B' },
 ]
 
 function getColor(name = '') {
@@ -20,8 +20,8 @@ export default function Avatar({ name = '?', size = 84 }) {
       width: size, height: size, borderRadius: '50%',
       background: bg, color: text,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.38, fontWeight: 700, flexShrink: 0,
-      userSelect: 'none', border: '2px solid rgba(255,255,255,0.8)',
+      fontSize: size * 0.4, fontWeight: 600, flexShrink: 0,
+      userSelect: 'none', letterSpacing: -0.5,
     }}>
       {(name || '?')[0]}
     </div>

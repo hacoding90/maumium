@@ -4,93 +4,105 @@ import Avatar from './Avatar.jsx'
 const currentYear = new Date().getFullYear()
 const getAge = (p) => p.birthYear ? currentYear - p.birthYear : p.age
 
-export default function ProfileModal({ profile, onClose, onLike, onDelete, onEdit, canWrite }) {
+export default function ProfileModal({ profile, onClose, onLike, onDelete, onEdit, canWrite, isOwn }) {
   const [photoIdx, setPhotoIdx] = useState(0)
   if (!profile) return null
 
   const age = getAge(profile)
   const photos = profile.photos || []
+  const canManage = canWrite || isOwn
 
   const infoRows = [
     ['출생연도', profile.birthYear ? `${profile.birthYear}년생` : '-'],
     ['만 나이', `만 ${age}세`],
     ['키', profile.heightRange ? `${profile.heightRange}cm` : '-'],
-    ['지역', [profile.city, profile.region].filter(Boolean).join(', ') || '-'],
-    ['직업', profile.job],
+    ['지역', [profile.city, profile.region].filter(Boolean).join(' ') || '-'],
+    ['직업', profile.job || '-'],
     profile.workplace ? ['직장', profile.workplace] : null,
-    ['학력', profile.education],
-    ['종교', profile.religion],
-    ['음주', profile.drink],
-    ['흡연', profile.smoke],
+    ['학력', profile.education || '-'],
+    ['종교', profile.religion || '-'],
+    ['음주', profile.drink || '-'],
+    ['흡연', profile.smoke || '-'],
     profile.mbti ? ['MBTI', profile.mbti] : null,
     profile.instagram ? ['인스타', `@${profile.instagram}`] : null,
     profile.matchmakerName ? ['주선자', profile.matchmakerName] : null,
   ].filter(Boolean)
 
+  const inputStyle = {
+    label: { fontSize: 11, color: '#8e8e93', marginBottom: 2, fontWeight: 500 },
+    value: { fontSize: 14, color: '#1c1c1e', fontWeight: 600 },
+    box: { background: '#f2f2f7', borderRadius: 12, padding: '10px 14px' },
+  }
+
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(40,15,25,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000 }}>
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto' }}
-      >
-        {/* 사진 슬라이더 */}
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '94vh', overflowY: 'auto' }}>
+
+        {/* 드래그 핸들 */}
+        <div style={{ padding: '12px 0 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#d1d1d6' }} />
+        </div>
+
+        {/* 사진 영역 */}
         {photos.length > 0 ? (
-          <div style={{ position: 'relative', background: '#f5e0e8' }}>
-            <img src={photos[photoIdx]} alt={profile.name} style={{ width: '100%', height: 300, objectFit: 'cover' }} />
+          <div style={{ position: 'relative', margin: '12px 16px 0', borderRadius: 16, overflow: 'hidden' }}>
+            <img src={photos[photoIdx]} alt={profile.name} style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }} />
             {photos.length > 1 && (
               <>
-                <div style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
+                <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 5 }}>
                   {photos.map((_, i) => (
-                    <div key={i} onClick={() => setPhotoIdx(i)} style={{ width: i === photoIdx ? 20 : 6, height: 6, borderRadius: 3, background: i === photoIdx ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'all 0.2s', cursor: 'pointer' }} />
+                    <div key={i} onClick={() => setPhotoIdx(i)} style={{ width: i === photoIdx ? 18 : 5, height: 5, borderRadius: 3, background: i === photoIdx ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'all 0.2s', cursor: 'pointer' }} />
                   ))}
                 </div>
-                {photoIdx > 0 && <button onClick={() => setPhotoIdx(i => i-1)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 16 }}>‹</button>}
-                {photoIdx < photos.length-1 && <button onClick={() => setPhotoIdx(i => i+1)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', fontSize: 16 }}>›</button>}
+                {photoIdx > 0 && <button onClick={() => setPhotoIdx(i => i-1)} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>}
+                {photoIdx < photos.length-1 && <button onClick={() => setPhotoIdx(i => i+1)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>}
               </>
             )}
-            <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>
         ) : (
-          <div style={{ background: 'linear-gradient(135deg,#fdf0f4,#f0d8e8)', padding: '32px 0 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-            <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 14, background: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12 }}>
             <Avatar name={profile.name} size={90} />
           </div>
         )}
 
-        <div style={{ padding: '20px 20px 32px' }}>
-          {/* 이름/기본 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 22, color: '#2d1a22' }}>{profile.name}</div>
-              <div style={{ fontSize: 14, color: '#9c6278', marginTop: 3 }}>
-                {profile.gender === '남' ? '♂ 남성' : '♀ 여성'} · {profile.birthYear ? `${profile.birthYear}년생` : `${age}세`}
-                {profile.city ? ` · ${profile.city}` : profile.region ? ` · ${profile.region}` : ''}
+        <div style={{ padding: '16px 16px 40px' }}>
+
+          {/* 이름 카드 */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: '#1c1c1e', letterSpacing: -0.5 }}>{profile.name}</div>
+                <div style={{ fontSize: 14, color: '#8e8e93', marginTop: 4 }}>
+                  {profile.gender === '남' ? '♂ 남성' : '♀ 여성'} · {profile.birthYear ? `${profile.birthYear}년생` : `${age}세`}
+                  {(profile.city || profile.region) && ` · ${profile.city || profile.region}`}
+                </div>
+                {profile.matchmakerName && <div style={{ fontSize: 12, color: '#FF3B7A', marginTop: 4, fontWeight: 500 }}>💕 주선자: {profile.matchmakerName}</div>}
               </div>
-              {profile.matchmakerName && (
-                <div style={{ fontSize: 12, color: '#c97090', marginTop: 4 }}>💕 주선자: {profile.matchmakerName}</div>
-              )}
+              <button
+                onClick={() => onLike(profile.id, profile.liked)}
+                style={{ background: profile.liked ? '#FFF0F5' : '#f2f2f7', border: 'none', borderRadius: 12, padding: '10px 14px', fontSize: 20, cursor: 'pointer' }}
+              >
+                {profile.liked ? '❤️' : '🤍'}
+              </button>
             </div>
-            <button onClick={() => onLike(profile.id, profile.liked)} style={{ background: profile.liked ? '#fde8ef' : '#fafafa', border: `1.5px solid ${profile.liked ? '#e05a7a' : '#f0dce6'}`, borderRadius: 12, padding: '8px 14px', fontSize: 20, cursor: 'pointer' }}>
-              {profile.liked ? '❤️' : '🤍'}
-            </button>
           </div>
 
           {/* 자기소개 */}
           {profile.intro && (
-            <div style={{ background: '#fdf6f9', borderRadius: 14, padding: '12px 14px', marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#c97090', marginBottom: 5 }}>자기소개</div>
-              <p style={{ margin: 0, fontSize: 14, color: '#4a2535', lineHeight: 1.75 }}>{profile.intro}</p>
+            <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#FF3B7A', marginBottom: 8 }}>자기소개</div>
+              <p style={{ margin: 0, fontSize: 14, color: '#1c1c1e', lineHeight: 1.7 }}>{profile.intro}</p>
             </div>
           )}
 
-          {/* 기본정보 그리드 */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#c97090', marginBottom: 10 }}>기본 정보</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px' }}>
+          {/* 기본정보 */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#FF3B7A', marginBottom: 12 }}>기본 정보</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {infoRows.map(([k, v]) => (
-                <div key={k} style={{ background: '#faf7f8', borderRadius: 10, padding: '8px 12px', gridColumn: (k==='직장'||k==='주선자'||k==='인스타') ? 'span 2' : 'span 1' }}>
-                  <div style={{ fontSize: 11, color: '#b08898', marginBottom: 2 }}>{k}</div>
-                  <div style={{ fontSize: 13, color: '#3a1e28', fontWeight: 600 }}>{v}</div>
+                <div key={k} style={{ ...inputStyle.box, gridColumn: (k==='직장'||k==='주선자'||k==='인스타') ? 'span 2' : 'span 1' }}>
+                  <div style={inputStyle.label}>{k}</div>
+                  <div style={inputStyle.value}>{v}</div>
                 </div>
               ))}
             </div>
@@ -98,48 +110,49 @@ export default function ProfileModal({ profile, onClose, onLike, onDelete, onEdi
 
           {/* 이상형 */}
           {(profile.idealDesc || profile.idealAge || profile.idealHeight) && (
-            <div style={{ background: '#fdf6f9', borderRadius: 14, padding: '12px 14px', marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#c97090', marginBottom: 8 }}>이상형</div>
-              <div style={{ display: 'flex', gap: 16, marginBottom: 6 }}>
-                {profile.idealAge && <div style={{ fontSize: 13, color: '#5a3040' }}><span style={{ color: '#c97090', fontWeight: 600 }}>나이 </span>{profile.idealAge}</div>}
-                {profile.idealHeight && <div style={{ fontSize: 13, color: '#5a3040' }}><span style={{ color: '#c97090', fontWeight: 600 }}>키 </span>{profile.idealHeight}</div>}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#FF3B7A', marginBottom: 12 }}>이상형</div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: profile.idealDesc ? 8 : 0 }}>
+                {profile.idealAge && <div style={{ fontSize: 13, color: '#1c1c1e' }}><span style={{ color: '#FF3B7A', fontWeight: 600 }}>나이 </span>{profile.idealAge}</div>}
+                {profile.idealHeight && <div style={{ fontSize: 13, color: '#1c1c1e' }}><span style={{ color: '#FF3B7A', fontWeight: 600 }}>키 </span>{profile.idealHeight}</div>}
               </div>
-              {profile.idealJob && <div style={{ fontSize: 13, color: '#5a3040', marginBottom: 4 }}><span style={{ color: '#c97090', fontWeight: 600 }}>직업 </span>{profile.idealJob}</div>}
-              {profile.idealDesc && <p style={{ margin: 0, fontSize: 13, color: '#4a2535', lineHeight: 1.7 }}>{profile.idealDesc}</p>}
+              {profile.idealJob && <div style={{ fontSize: 13, color: '#1c1c1e', marginBottom: 6 }}><span style={{ color: '#FF3B7A', fontWeight: 600 }}>직업 </span>{profile.idealJob}</div>}
+              {profile.idealDesc && <p style={{ margin: 0, fontSize: 14, color: '#1c1c1e', lineHeight: 1.6 }}>{profile.idealDesc}</p>}
             </div>
           )}
 
-          {/* 관리자/일진 버튼 */}
-          {canWrite && (
-            <div style={{ display: 'flex', gap: 8 }}>
+          {/* 관리 버튼 */}
+          {canManage && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
                 onClick={() => onEdit(profile)}
-                style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1.5px solid #e05a7a', background: '#fff', color: '#e05a7a', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                style={{ width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: '#FF3B7A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
               >
                 ✏️ 프로필 수정
               </button>
-              <button
-                onClick={async () => {
-                  const action = profile.hidden ? '다시 표시' : '숨김 처리'
-                  if (window.confirm(`${profile.name}님을 ${action}하시겠어요?`)) {
-                    onDelete(profile.id, 'toggle', !profile.hidden)
-                    onClose()
-                  }
-                }}
-                style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1.5px solid #f0dce6', background: '#fff', color: '#b08898', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-              >
-                {profile.hidden ? '👁️ 다시 표시' : '🙈 숨김 (애인 생김)'}
-              </button>
+              {canWrite && (
+                <button
+                  onClick={() => {
+                    const action = profile.hidden ? '다시 표시' : '숨김 처리'
+                    if (window.confirm(`${profile.name}님을 ${action}하시겠어요?`)) {
+                      onDelete(profile.id, 'toggle', !profile.hidden)
+                      onClose()
+                    }
+                  }}
+                  style={{ width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: '#f2f2f7', color: '#636366', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {profile.hidden ? '👁️ 다시 표시하기' : '🙈 숨김 처리 (애인 생김)'}
+                </button>
+              )}
+              {canWrite && (
+                <button
+                  onClick={() => { if (window.confirm(`${profile.name}님 프로필을 삭제할까요?`)) { onDelete(profile.id, 'delete'); onClose() } }}
+                  style={{ width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: '#fff0f5', color: '#FF3B7A', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  🗑️ 프로필 삭제
+                </button>
+              )}
             </div>
-          )}
-
-          {canWrite && (
-            <button
-              onClick={() => { if (window.confirm(`${profile.name}님의 프로필을 삭제할까요?`)) { onDelete(profile.id, 'delete'); onClose() } }}
-              style={{ width: '100%', padding: '10px', borderRadius: 12, border: '1px solid #fde8ef', background: '#fff', color: '#e05a7a', fontSize: 13, cursor: 'pointer', fontWeight: 500, marginTop: 8 }}
-            >
-              🗑️ 프로필 삭제
-            </button>
           )}
         </div>
       </div>
