@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth'
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, query, orderBy, setDoc, getDoc,
@@ -62,6 +62,13 @@ export default function App() {
   const unsubProfiles  = useRef(null)
   const unsubMatchings = useRef(null)
 
+
+  // ── 리다이렉트 로그인 결과 처리 ─────────────────
+  useEffect(() => {
+    getRedirectResult(auth).catch(err => {
+      console.warn("리다이렉트 로그인 오류:", err.message)
+    })
+  }, [])
   // ── 인증 상태 감지 ──────────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
